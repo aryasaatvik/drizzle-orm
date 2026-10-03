@@ -44,6 +44,25 @@ const customSchema = s.String.pipe(s.decodeTo(s.Number, {
 	encode: SchemaGetter.transform((v: number) => String(v)),
 }));
 
+test('fixed lengths reject shorter and longer values', (t) => {
+	const table = pgTable('fixed_lengths', (c) => ({
+		bit: c.bit({ dimensions: 3 }).notNull(),
+		vector: c.vector({ dimensions: 3 }).notNull(),
+		halfvec: c.halfvec({ dimensions: 3 }).notNull(),
+	}));
+	const decode = s.decodeUnknownSync(createSelectSchema(table));
+	const valid = { bit: '101', vector: [1, 2, 3], halfvec: [1, 2, 3] };
+
+	t.expect(decode(valid)).toEqual(valid);
+	for (const bit of ['10', '1010']) {
+		t.expect(() => decode({ ...valid, bit })).toThrow();
+	}
+	for (const values of [[1, 2], [1, 2, 3, 4]]) {
+		t.expect(() => decode({ ...valid, vector: values })).toThrow();
+		t.expect(() => decode({ ...valid, halfvec: values })).toThrow();
+	}
+});
+
 test('table - select', (t) => {
 	const table = pgTable('test', {
 		id: serial().primaryKey(),
@@ -516,7 +535,7 @@ test('all data types', (t) => {
 			s.isGreaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
 			s.isLessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
 		),
-		bit: s.String.check(s.isPattern(/^[01]*$/), s.isLengthBetween(5, 5)),
+		bit: s.String.check(s.isPattern(/^[01]*$/), s.isBetweenLength(5, 5)),
 		boolean: s.Boolean,
 		date1: s.Date,
 		date2: s.String,
@@ -529,7 +548,7 @@ test('all data types', (t) => {
 		),
 		geometry1: s.Tuple([s.Number, s.Number]),
 		geometry2: s.Struct({ x: s.Number, y: s.Number }),
-		halfvec: s.Array(s.Number).check(s.isLengthBetween(3, 3)),
+		halfvec: s.Array(s.Number).check(s.isBetweenLength(3, 3)),
 		inet: s.String,
 		integer: s.Int.check(
 			s.isGreaterThanOrEqualTo(CONSTANTS.INT32_MIN),
@@ -578,7 +597,7 @@ test('all data types', (t) => {
 		uuid: s.String.check(s.isUUID()),
 		varchar1: s.String.check(s.isMaxLength(10)),
 		varchar2: s.Literals(['a', 'b', 'c']),
-		vector: s.Array(s.Number).check(s.isLengthBetween(3, 3)),
+		vector: s.Array(s.Number).check(s.isBetweenLength(3, 3)),
 		array1: s.Array(integerSchema),
 		array2: s.Array(s.Array(integerSchema)),
 		array3: s.Array(s.Array(s.String.check(s.isMaxLength(10)))),
